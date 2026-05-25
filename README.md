@@ -1,4 +1,4 @@
-# vuforia-api
+# Prevention App API for Vuforia
 
 This API allows you to add, update, or delete images in the Vuforia database. The images managed by this API are essential for the childhood cancer prevention project.
 
@@ -17,7 +17,7 @@ This API allows you to add, update, or delete images in the Vuforia database. Th
 
 - **Get all images:**
 	```
-	GET http://**HOST_IP**:**PORT**/gallery
+	GET http://HOST_IP:PORT/gallery
 	```
 	Returns all images present in the database.
 
