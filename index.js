@@ -2,8 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const axios = require('axios');
-const fs = require('fs');       // NOVO: Para gravar ficheiros no servidor
-const path = require('path');   // NOVO: Para lidar com caminhos de pastas
+const fs = require('fs');      // NOVO: Para gravar ficheiros no servidor
+const path = require('path');  // NOVO: Para gerir caminhos de pastas
 require('dotenv').config();
 
 const app = express();
@@ -11,21 +11,17 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// NOVO: Diz ao Express para tornar a pasta 'uploads' pública para o Unity aceder
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// NOVO: Criar pasta 'uploads' se não existir ao ligar o servidor
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
+}
+
+// NOVO: Dizer ao Express para expor a pasta 'uploads' publicamente para o Unity conseguir ler os URLs
+app.use('/uploads', express.static(uploadsDir));
 
 const ACCESS_KEY = process.env.VUFORIA_SERVER_ACCESS_KEY;
 const SECRET_KEY = process.env.VUFORIA_SERVER_SECRET_KEY;
-
-// Função auxiliar para ler/escrever no nosso db.json local
-const dbPath = path.join(__dirname, 'db.json');
-function getLocalDB() {
-    if (fs.existsSync(dbPath)) return JSON.parse(fs.readFileSync(dbPath));
-    return [];
-}
-function saveLocalDB(data) {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-}
 
 function buildSignature(method, contentType, body, date, requestPath) {
     const bodyString = body ? JSON.stringify(body) : '';
@@ -50,22 +46,54 @@ function buildSignature(method, contentType, body, date, requestPath) {
     return signature;
 }
 
-// ----------------------------------------------------
-// NOVO ENDPOINT: O UNITY VAI CHAMAR ISTO PARA A GALERIA
-// ----------------------------------------------------
-app.get('/marcadores', (req, res) => {
+// Iniciar o servidor
+app.listen(process.env.PORT || 3000, () => {
+    console.log('Servidor a correr na porta 3000');
+});
+
+// ==============================================================
+// ROTA NOVA: DEVOLVE A LISTA DE IMAGENS PARA A GALERIA DO UNITY
+// ==============================================================
+app.get('/gallery', (req, res) => {
     try {
-        const db = getLocalDB();
-        res.json({ marcadores: db });
+        // Lê todos os ficheiros que estão na pasta 'uploads'
+        const files = fs.readdirSync(uploadsDir);
+        
+        // Pega no URL base do servidor (ex: http://localhost:3000 ou o teu domínio online)
+        const baseUrl = `${req.protocol}://${req.get('host')}/uploads/`;
+
+        // Constrói o JSON exatamente no formato que o nosso script do Unity espera
+        const marcadores = files.map((file, index) => {
+            return {
+                id: index.toString(),
+                nome: path.parse(file).name, // Tira a extensão .png/.jpg do nome
+                urlImagem: baseUrl + file
+            };
+        });
+
+        res.json({ marcadores });
     } catch (error) {
-        res.status(500).json({ success: false, error: "Erro ao ler a base de dados local." });
+        console.error("Erro a ler a galeria:", error);
+        res.status(500).json({ success: false, error: "Erro ao ler as imagens locais." });
     }
 });
 
 
+// ==============================================================
+// ROTAS DO VUFORIA
+// ==============================================================
+
 app.post('/targets', async (req, res) => {
     try {
         const { name, width, imageBase64, metadata } = req.body;
+
+        // NOVO: Antes de enviar para o Vuforia, guarda uma cópia física no servidor!
+        if (imageBase64) {
+            const imageBuffer = Buffer.from(imageBase64, 'base64');
+            const imagePath = path.join(uploadsDir, `${name}.png`);
+            fs.writeFileSync(imagePath, imageBuffer);
+            console.log(`Cópia local guardada: ${imagePath}`);
+        }
 
         const body = {
             name,
@@ -81,10 +109,10 @@ app.post('/targets', async (req, res) => {
         const contentType = 'application/json';
         const requestPath = '/targets';
         const date = new Date().toUTCString();
+
         const signature = buildSignature(method, contentType, body, date, requestPath);
         const authHeader = `VWS ${ACCESS_KEY}:${signature}`;
 
-        // 1. Envia para o Vuforia
         const response = await axios.post(
             'https://vws.vuforia.com/targets',
             body,
@@ -97,28 +125,6 @@ app.post('/targets', async (req, res) => {
             }
         );
 
-        // 2. Vuforia Aceitou! Agora vamos guardar localmente para o Unity conseguir ver
-        const vuforiaId = response.data.target_id;
-        
-        // Cria a pasta uploads se não existir
-        const dir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-
-        // Converte o base64 de volta para imagem e guarda
-        const imageBuffer = Buffer.from(imageBase64, 'base64');
-        const imageFileName = `${vuforiaId}.png`;
-        fs.writeFileSync(path.join(dir, imageFileName), imageBuffer);
-
-        // Atualiza a base de dados local
-        const db = getLocalDB();
-        db.push({
-            id: vuforiaId,
-            nome: name,
-            // IMPORTANTE: Em produção, deves mudar o localhost para o teu IP ou Domínio!
-            urlImagem: `http://localhost:3000/uploads/${imageFileName}` 
-        });
-        saveLocalDB(db);
-
         res.json(response.data);
     } catch (error) {
         console.error(error.response?.data || error.message);
@@ -126,7 +132,6 @@ app.post('/targets', async (req, res) => {
     }
 });
 
-// A tua rota GET /targets original (que vai buscar ao Vuforia) mantém-se igual
 app.get('/targets', async (req, res) => {
     try {
         const method = 'GET';
@@ -150,32 +155,22 @@ app.get('/targets', async (req, res) => {
     }
 });
 
-app.delete('/targets/:id', async (req, res) => {
+app.get('/targets/:id', async (req, res) => {
     try {
         const targetId = req.params.id;
-        const method = 'DELETE';
+        const method = 'GET';
         const contentType = '';
         const requestPath = `/targets/${targetId}`;
         const date = new Date().toUTCString();
+        const contentMD5 = 'd41d8cd98f00b204e9800998ecf8427e';
 
-        const stringToSign = method + '\n' + '\n' + contentType + '\n' + date + '\n' + requestPath;
+        const stringToSign = method + '\n' + contentMD5 + '\n' + contentType + '\n' + date + '\n' + requestPath;
         const signature = crypto.createHmac('sha1', SECRET_KEY).update(stringToSign).digest('base64');
         const authHeader = `VWS ${ACCESS_KEY}:${signature}`;
 
-        // 1. Apaga do Vuforia
-        const response = await axios.delete(`https://vws.vuforia.com/targets/${targetId}`, {
-            headers: { 'Authorization': authHeader, 'Date': date }
+        const response = await axios.get(`https://vws.vuforia.com/targets/${targetId}`, {
+            headers: { Authorization: authHeader, Date: date }
         });
-
-        // 2. Apaga da nossa base de dados local e o ficheiro da imagem
-        const db = getLocalDB();
-        const index = db.findIndex(m => m.id === targetId);
-        if (index !== -1) {
-            const imagePath = path.join(__dirname, 'uploads', `${targetId}.png`);
-            if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath); // Apaga a imagem
-            db.splice(index, 1); // Apaga do JSON
-            saveLocalDB(db);
-        }
 
         res.json(response.data);
     } catch (error) {
@@ -184,6 +179,36 @@ app.delete('/targets/:id', async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-    console.log('Servidor a correr na porta 3000');
+app.delete('/targets/:id/:name', async (req, res) => {
+    try {
+        const targetId = req.params.id;
+        const targetName = req.params.name; // Útil para apagar a imagem local
+
+        const method = 'DELETE';
+        const contentType = '';
+        const requestPath = `/targets/${targetId}`;
+        const date = new Date().toUTCString();
+
+        const stringToSign = method + '\n\n' + contentType + '\n' + date + '\n' + requestPath;
+        const signature = crypto.createHmac('sha1', SECRET_KEY).update(stringToSign).digest('base64');
+        const authHeader = `VWS ${ACCESS_KEY}:${signature}`;
+
+        const response = await axios.delete(`https://vws.vuforia.com/targets/${targetId}`, {
+            headers: { 'Authorization': authHeader, 'Date': date }
+        });
+
+        // NOVO: Se o Vuforia apagou com sucesso, apaga também a imagem do teu servidor
+        if (response.status === 200) {
+            const imagePath = path.join(uploadsDir, `${targetName}.png`);
+            if (fs.existsSync(imagePath)) {
+                fs.unlinkSync(imagePath);
+                console.log(`Imagem apagada do servidor: ${imagePath}`);
+            }
+        }
+
+        res.json(response.data);
+    } catch (error) {
+        console.error(error.response?.data || error.message);
+        res.status(500).json({ success: false, error: error.response?.data || error.message });
+    }
 });
