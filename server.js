@@ -127,13 +127,47 @@ app.post('/targets', async (req, res) => {
     try {
         const { name, width, imageBase64, metadata } = req.body;
 
+        // ==============================================================
+        // NOVO: ROTINA DE LIMPEZA (Substituir imagem do mesmo nível)
+        // ==============================================================
+        try {
+            const files = fs.readdirSync(uploadsDir);
+            // Procura se já existe um ficheiro na pasta que acabe com o nome exato deste alvo
+            const ficheiroAntigo = files.find(file => file.endsWith(`---${name}.png`));
+
+            if (ficheiroAntigo) {
+                const oldTargetId = ficheiroAntigo.split('---')[0];
+                console.log(`[LIMPEZA] Encontrada imagem antiga para ${name} (ID: ${oldTargetId}). A apagar...`);
+
+                // 1. Apagar do Vuforia
+                const delMethod = 'DELETE';
+                const delPath = `/targets/${oldTargetId}`;
+                const delDate = new Date().toUTCString();
+                const delSignature = buildSignature(delMethod, '', null, delDate, delPath);
+                const delAuthHeader = `VWS ${ACCESS_KEY}:${delSignature}`;
+
+                await axios.delete(`https://vws.vuforia.com/targets/${oldTargetId}`, {
+                    headers: { 'Authorization': delAuthHeader, 'Date': delDate }
+                });
+
+                // 2. Apagar o ficheiro local
+                const oldImagePath = path.join(uploadsDir, ficheiroAntigo);
+                if (fs.existsSync(oldImagePath)) {
+                    fs.unlinkSync(oldImagePath);
+                    console.log(`[LIMPEZA] Ficheiro local antigo apagado com sucesso!`);
+                }
+            }
+        } catch (cleanupError) {
+            console.warn("[LIMPEZA] Erro ao tentar remover imagem antiga:", cleanupError.message);
+        }
+        // ==============================================================
+
+        // Continua com o upload normal da imagem nova
         const body = {
             name,
             width,
             image: imageBase64,
-            application_metadata: Buffer.from(
-                JSON.stringify(metadata || {})
-            ).toString('base64'),
+            application_metadata: Buffer.from(JSON.stringify(metadata || {})).toString('base64'),
             active_flag: true
         };
 
@@ -145,19 +179,16 @@ app.post('/targets', async (req, res) => {
         const signature = buildSignature(method, contentType, body, date, requestPath);
         const authHeader = `VWS ${ACCESS_KEY}:${signature}`;
 
-        // 1. FAZ O UPLOAD PARA O VUFORIA PRIMEIRO
         const response = await axios.post('https://vws.vuforia.com/targets', body, {
             headers: { 'Authorization': authHeader, 'Date': date, 'Content-Type': contentType }
         });
 
-        // 2. SE SUCESSO, GUARDA LOCALMENTE COM O NOVO NOME (ID---NOME.png)
         if (response.data && response.data.target_id && imageBase64) {
             const targetId = response.data.target_id;
             const imageBuffer = Buffer.from(imageBase64, 'base64');
-            
             const imagePath = path.join(uploadsDir, `${targetId}---${name}.png`);
             fs.writeFileSync(imagePath, imageBuffer);
-            console.log(`Cópia local guardada: ${imagePath}`);
+            console.log(`Cópia local nova guardada: ${imagePath}`);
         }
 
         res.json(response.data);
