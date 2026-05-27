@@ -3,6 +3,7 @@ const cors = require('cors');
 const crypto = require('crypto');
 const axios = require('axios');
 const admin = require('firebase-admin'); 
+const fs = require('fs'); // <-- Garante que o 'fs' está aqui para podermos verificar os caminhos
 require('dotenv').config();
 
 const app = express();
@@ -10,11 +11,31 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Firebase
-const serviceAccount = require('./firebase-key.json');
+// ==============================================================
+// CONFIGURAÇÃO DO FIREBASE (Suporta Render Secret Files e Local)
+// ==============================================================
+let serviceAccount;
+
+// Caminho onde o Render guarda os Secret Files
+const renderSecretPath = '/etc/secrets/firebase-key.json';
+// Caminho local no teu computador
+const localPath = './firebase-key.json';
+
+try {
+    if (fs.existsSync(renderSecretPath)) {
+        serviceAccount = require(renderSecretPath);
+        console.log("A ler chaves do Firebase a partir do Secret File do Render.");
+    } else {
+        serviceAccount = require(localPath);
+        console.log("A ler chaves do Firebase localmente.");
+    }
+} catch (error) {
+    console.error("ERRO FATAL: Não foi possível ler o ficheiro firebase-key.json.", error);
+}
+
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: 'gs://prevention-vuforia-api.firebasestorage.app'
+    storageBucket: 'AQUI_O_TEU_BUCKET.appspot.com' // <-- Lembra-te de colocar o link do teu bucket aqui!
 });
 const bucket = admin.storage().bucket();
 
