@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "prevention-vuforia-api",
+  "private_key_id": "dfc49c0ef411049fbb53e3f2da1c3cbc7b9be17a",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7jQdesAFmBPmR\nVmEhVPxvQO75qt/II0jD3JZid0pLHoyLiwdegFSTVeYrdX9hSr3zPhNJd97f84v6\nuFkUMaoBZzH22Ta/9cQEEBVbTUV5BFrakNIFldTKK1vCXNPiGLduBMXn6wAZtMSD\nR14SdkAXwzewBFLOxgqEiB2H7tDHu32YhzoxRKY68qgHqZSqMTrPPs9CsGFRYr55\nSScaC7guDta66BrtIuJmtj5CyZA84YSCY6mo5MM8MyqMakCPNOzEGHqDyxzSVWYD\n7q4j2Wughb2WZqADfIJpZcdFWB7kt29A/c6+91DuFSDo7Xies/eCMQEZBYbN5mWx\nBcyo27odAgMBAAECggEAUmbCCC4YTzR8WgizoCtwxYin9nXG4G3wOG2gfR6gO6Tu\nZxjsYe7MOfeRqyJyltJ55nctjifmekrNA5kfOiof4YHvh98jmO9n8ckHORgYH/Vz\n3XenbuDHnxOxuxGB3mKxpNrgAOdVIfY0KOGgSUg/HLGes+0SXNrSICyVnPWmMTpE\nVtrQS3nZGRu9AZAglaQS3NHcEYEwi5FrqSTMIMSBiZb9A5WaviOcTB8OhiPF8FuN\naNZ2Alp9/6Mt4fZo1vg4CkQhVafFhp3nmTPvTwm55aFesgxON8cxLuCS+LCkzajK\nifQzTOjswVBiap0HEQRdFwBnnLCjKzqTUdcl+ooSWQKBgQDlAZGec7u3kDmYBykL\nJxySkN6ZNc2iCu6sBWGjuFsxM3amkOntONJS1XpS9/ylOb7UJXBhp/0xBw7Ysxxc\n5YZsxkMU+OJFQvZFH7/9XANDhDHW34/4bA6wqlvo2t1gDYHGOVGWSh/npMb/uJnf\nSIHWgz7JXqxFK0FK/DTqYe2eiwKBgQDRqIRrQ/YtNrD4je0J19JGQn6lJ5mhF+JO\nbLdwRTc8r9880cFzrUCW0xWqV/TD/56J/LfUiodew70n5GW1mLVs/yFPMXV3HB35\np9GC0xnOkZ70Ny0kNBJBAR3f08RdhRksLfesirXuhVfXOgpJ7Ji+sA3hVfPCzRwB\nFFoIuTGG9wKBgFgejGwOWJM/2gmX58E04Ze8SwtlWqUZ09E5mOKo095Q0T0y0fDI\nRpY9Mv6uEfd6CuYTKfVJ8PFmp93Wvfk5EMrWV4XAZ0EDjUP3/aZ+O3tFaPAnwnxz\nCAwO4aLuZPTK/b7K24wbJb+69h/8Zqk2e0+R3R0bYuqSxGMYPTxbRlYVAoGBANCo\nLmGy2aZV7/rvBSHusU9Ljk9AAh3Zb1ktycLqn/a98ibNewJtQwLYQY+uyeLm3Bno\ncewNknw1wmOZY8A/oxA/Oh9e0dEhIpP8+P6CqgRz2Qakg0Cssh4PxnOkhqGsfUkC\n1qPZyQcBnlKNaP/5gGsHPEkvCdKt31kTsCdOaIQxAoGALuTKo3/AvGWnli9lTLF2\nLTQRbG8C4jatZsbIqzJTyB+dV16xzZhunqUqtziXB2WKeQoX7u8eHv9kxzTkcfOA\n+1O2wbiV+ifNe5hELo7Uz+y2eMcAFAcXqLBz6Vw8nTf+DIEvdapSh59lg6SDBYIm\nE1hPnGt7B4AYxPJl/18z/BQ=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@prevention-vuforia-api.iam.gserviceaccount.com",
+  "client_id": "103412464298606257991",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40prevention-vuforia-api.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

@@ -2,8 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const axios = require('axios');
-const fs = require('fs');      
-const path = require('path');  
+const admin = require('firebase-admin'); 
 require('dotenv').config();
 
 const app = express();
@@ -11,80 +10,65 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
-}
-
-app.use('/uploads', express.static(uploadsDir));
+// ==============================================================
+// CONFIGURAÇÃO DO FIREBASE (Substitui o disco local)
+// ==============================================================
+const serviceAccount = require('./firebase-key.json');
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    storageBucket: 'gs://prevention-vuforia-api.firebasestorage.app'
+});
+const bucket = admin.storage().bucket();
 
 const ACCESS_KEY = process.env.VUFORIA_SERVER_ACCESS_KEY;
 const SECRET_KEY = process.env.VUFORIA_SERVER_SECRET_KEY;
 
-// Função universal de Assinatura (Agora serve perfeitamente para GET, POST e DELETE)
+// Função universal de Assinatura
 function buildSignature(method, contentType, body, date, requestPath) {
     const bodyString = body ? JSON.stringify(body) : '';
-
-    const contentMD5 = crypto
-        .createHash('md5')
-        .update(bodyString)
-        .digest('hex');
-
-    const stringToSign =
-        method + '\n' +
-        contentMD5 + '\n' +
-        contentType + '\n' +
-        date + '\n' +
-        requestPath;
-
-    const signature = crypto
-        .createHmac('sha1', SECRET_KEY)
-        .update(stringToSign)
-        .digest('base64');
-
-    return signature;
+    const contentMD5 = crypto.createHash('md5').update(bodyString).digest('hex');
+    const stringToSign = method + '\n' + contentMD5 + '\n' + contentType + '\n' + date + '\n' + requestPath;
+    return crypto.createHmac('sha1', SECRET_KEY).update(stringToSign).digest('base64');
 }
 
 app.listen(process.env.PORT || 3000, () => {
-    console.log('Servidor a correr na porta 3000');
+    console.log('Servidor a correr na porta 3000 e ligado ao Firebase!');
 });
 
 // ==============================================================
-// ROTA DA GALERIA (Atualizada para ler o ID e o Nome do ficheiro)
+// ROTA DA GALERIA (Lê diretamente do Firebase)
 // ==============================================================
-app.get('/gallery', (req, res) => {
+app.get('/gallery', async (req, res) => {
     try {
-        const files = fs.readdirSync(uploadsDir);
-        const baseUrl = `${req.protocol}://${req.get('host')}/uploads/`;
+        const [files] = await bucket.getFiles();
 
         const marcadores = files.map((file) => {
-            // O ficheiro será guardado como: "TARGETID---NOME.png"
-            const parts = file.split('---');
+            const parts = file.name.split('---');
             let idReal = "";
             let nomeReal = "";
 
             if (parts.length === 2) {
                 idReal = parts[0];
                 nomeReal = parts[1].replace('.png', '').replace('.jpg', '');
-            } else {
-                // Ignora ficheiros que não estejam no formato novo
-                return null;
-            }
+                
+                // Link direto do Firebase para o Unity conseguir ler a imagem na UI
+                const urlImagem = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.name)}?alt=media`;
 
-            return {
-                id: idReal,
-                nome: nomeReal,
-                urlImagem: baseUrl + file
-            };
-        }).filter(item => item !== null); // Remove ficheiros inválidos
+                return {
+                    id: idReal,
+                    nome: nomeReal,
+                    urlImagem: urlImagem
+                };
+            }
+            return null;
+        }).filter(item => item !== null);
 
         res.json({ marcadores });
     } catch (error) {
         console.error("Erro a ler a galeria:", error);
-        res.status(500).json({ success: false, error: "Erro ao ler as imagens locais." });
+        res.status(500).json({ success: false, error: "Erro ao ler as imagens do Firebase." });
     }
 });
-
 
 // ==============================================================
 // ROTAS DO VUFORIA
@@ -99,27 +83,18 @@ app.get('/targets/:id', async (req, res) => {
         const requestPath = `/targets/${targetId}`;
         const date = new Date().toUTCString();
 
-        // Para rotas GET específicas, o contentMD5 pode não ser necessário ou é nulo
         const signature = buildSignature(method, contentType, null, date, requestPath);
         const authHeader = `VWS ${ACCESS_KEY}:${signature}`;
 
         const response = await axios.get(
             `https://vws.vuforia.com/targets/${targetId}`,
-            {
-                headers: {
-                    Authorization: authHeader,
-                    Date: date
-                }
-            }
+            { headers: { Authorization: authHeader, Date: date } }
         );
 
         res.json(response.data);
     } catch (error) {
         console.error("Erro a verificar status:", error.response?.data || error.message);
-        res.status(500).json({
-            success: false,
-            error: error.response?.data || error.message
-        });
+        res.status(500).json({ success: false, error: error.response?.data || error.message });
     }
 });
 
@@ -128,15 +103,14 @@ app.post('/targets', async (req, res) => {
         const { name, width, imageBase64, metadata } = req.body;
 
         // ==============================================================
-        // NOVO: ROTINA DE LIMPEZA (Substituir imagem do mesmo nível)
+        // ROTINA DE LIMPEZA (Substituir imagem do mesmo nível no Firebase)
         // ==============================================================
         try {
-            const files = fs.readdirSync(uploadsDir);
-            // Procura se já existe um ficheiro na pasta que acabe com o nome exato deste alvo
-            const ficheiroAntigo = files.find(file => file.endsWith(`---${name}.png`));
+            const [files] = await bucket.getFiles();
+            const ficheiroAntigo = files.find(file => file.name.endsWith(`---${name}.png`));
 
             if (ficheiroAntigo) {
-                const oldTargetId = ficheiroAntigo.split('---')[0];
+                const oldTargetId = ficheiroAntigo.name.split('---')[0];
                 console.log(`[LIMPEZA] Encontrada imagem antiga para ${name} (ID: ${oldTargetId}). A apagar...`);
 
                 // 1. Apagar do Vuforia
@@ -150,19 +124,16 @@ app.post('/targets', async (req, res) => {
                     headers: { 'Authorization': delAuthHeader, 'Date': delDate }
                 });
 
-                // 2. Apagar o ficheiro local
-                const oldImagePath = path.join(uploadsDir, ficheiroAntigo);
-                if (fs.existsSync(oldImagePath)) {
-                    fs.unlinkSync(oldImagePath);
-                    console.log(`[LIMPEZA] Ficheiro local antigo apagado com sucesso!`);
-                }
+                // 2. Apagar o ficheiro do Firebase
+                await ficheiroAntigo.delete();
+                console.log(`[LIMPEZA] Ficheiro antigo apagado do Firebase com sucesso!`);
             }
         } catch (cleanupError) {
             console.warn("[LIMPEZA] Erro ao tentar remover imagem antiga:", cleanupError.message);
         }
         // ==============================================================
 
-        // Continua com o upload normal da imagem nova
+        // Continua com o upload normal da imagem nova para o Vuforia
         const body = {
             name,
             width,
@@ -183,12 +154,18 @@ app.post('/targets', async (req, res) => {
             headers: { 'Authorization': authHeader, 'Date': date, 'Content-Type': contentType }
         });
 
+        // 3. Se gravou no Vuforia com sucesso, guarda a cópia no Firebase
         if (response.data && response.data.target_id && imageBase64) {
             const targetId = response.data.target_id;
             const imageBuffer = Buffer.from(imageBase64, 'base64');
-            const imagePath = path.join(uploadsDir, `${targetId}---${name}.png`);
-            fs.writeFileSync(imagePath, imageBuffer);
-            console.log(`Cópia local nova guardada: ${imagePath}`);
+            const fileName = `${targetId}---${name}.png`;
+            
+            const file = bucket.file(fileName);
+            await file.save(imageBuffer, {
+                metadata: { contentType: 'image/png' }
+            });
+            
+            console.log(`Cópia guardada no Firebase: ${fileName}`);
         }
 
         res.json(response.data);
@@ -197,7 +174,6 @@ app.post('/targets', async (req, res) => {
         res.status(500).json({ success: false, error: error.response?.data || error.message });
     }
 });
-
 
 app.delete('/targets/:id/:name', async (req, res) => {
     try {
@@ -209,20 +185,24 @@ app.delete('/targets/:id/:name', async (req, res) => {
         const requestPath = `/targets/${targetId}`;
         const date = new Date().toUTCString();
 
-        // Agora usamos a função buildSignature universal que garante o Content-MD5 correto!
         const signature = buildSignature(method, contentType, null, date, requestPath);
         const authHeader = `VWS ${ACCESS_KEY}:${signature}`;
 
+        // Apaga do Vuforia
         const response = await axios.delete(`https://vws.vuforia.com/targets/${targetId}`, {
             headers: { 'Authorization': authHeader, 'Date': date }
         });
 
-        // Se apagou com sucesso no Vuforia, apaga a nossa imagem local
+        // Se apagou com sucesso no Vuforia, apaga também no Firebase
         if (response.status === 200 || response.status === 201) {
-            const imagePath = path.join(uploadsDir, `${targetId}---${targetName}.png`);
-            if (fs.existsSync(imagePath)) {
-                fs.unlinkSync(imagePath);
-                console.log(`Imagem local apagada: ${imagePath}`);
+            const fileName = `${targetId}---${targetName}.png`;
+            const file = bucket.file(fileName);
+            
+            try {
+                await file.delete();
+                console.log(`Imagem apagada do Firebase: ${fileName}`);
+            } catch (e) {
+                console.log(`A imagem ${fileName} já não existia no Firebase.`);
             }
         }
 
