@@ -16,9 +16,8 @@ app.use(express.json({ limit: '50mb' }));
 // ==============================================================
 let serviceAccount;
 
-// Caminho onde o Render guarda os Secret Files
 const renderSecretPath = '/etc/secrets/firebase-key.json';
-// Caminho local no teu computador
+
 const localPath = './firebase-key.json';
 
 try {
@@ -29,6 +28,11 @@ try {
         serviceAccount = require(localPath);
         console.log("A ler chaves do Firebase localmente.");
     }
+
+    if (serviceAccount && serviceAccount.private_key) {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
+
 } catch (error) {
     console.error("ERRO FATAL: Não foi possível ler o ficheiro firebase-key.json.", error);
 }
