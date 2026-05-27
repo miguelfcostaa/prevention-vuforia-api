@@ -35,7 +35,7 @@ try {
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: 'AQUI_O_TEU_BUCKET.appspot.com' // <-- Lembra-te de colocar o link do teu bucket aqui!
+    storageBucket: 'gs://prevention-vuforia-api.firebasestorage.app' // <-- Lembra-te de colocar o link do teu bucket aqui!
 });
 const bucket = admin.storage().bucket();
 
