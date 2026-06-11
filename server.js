@@ -39,7 +39,8 @@ admin.initializeApp({
     storageBucket: 'prevention-vuforia-api.firebasestorage.app' 
 });
 const bucket = admin.storage().bucket();
-const db = admin.firestore();
+// Explicitly define the database ID created by the user
+const db = admin.firestore({ databaseId: 'prevention-game' });
 
 const ACCESS_KEY = process.env.VUFORIA_SERVER_ACCESS_KEY;
 const SECRET_KEY = process.env.VUFORIA_SERVER_SECRET_KEY;
