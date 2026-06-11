@@ -3,6 +3,7 @@ const cors = require('cors');
 const crypto = require('crypto');
 const axios = require('axios');
 const admin = require('firebase-admin'); 
+const { getFirestore } = require('firebase-admin/firestore');
 const fs = require('fs'); 
 require('dotenv').config();
 
@@ -34,13 +35,13 @@ try {
     console.error("ERRO FATAL: Não foi possível ler o ficheiro firebase-key.json.", error);
 }
 
-admin.initializeApp({
+const firebaseApp = admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     storageBucket: 'prevention-vuforia-api.firebasestorage.app' 
 });
 const bucket = admin.storage().bucket();
 // Explicitly define the database ID created by the user
-const db = admin.firestore({ databaseId: 'prevention-game' });
+const db = getFirestore(firebaseApp, 'prevention-game');
 
 const ACCESS_KEY = process.env.VUFORIA_SERVER_ACCESS_KEY;
 const SECRET_KEY = process.env.VUFORIA_SERVER_SECRET_KEY;
