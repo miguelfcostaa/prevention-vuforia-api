@@ -3,7 +3,7 @@ const cors = require('cors');
 const crypto = require('crypto');
 const axios = require('axios');
 const admin = require('firebase-admin'); 
-const fs = require('fs'); // <-- Garante que o 'fs' está aqui para podermos verificar os caminhos
+const fs = require('fs'); 
 require('dotenv').config();
 
 const app = express();
@@ -11,13 +11,10 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// ==============================================================
-// CONFIGURAÇÃO DO FIREBASE (Suporta Render Secret Files e Local)
-// ==============================================================
+
 let serviceAccount;
 
 const renderSecretPath = '/etc/secrets/firebase-key.json';
-
 const localPath = './firebase-key.json';
 
 try {
@@ -39,9 +36,10 @@ try {
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: 'prevention-vuforia-api.firebasestorage.app' // <-- Lembra-te de colocar o link do teu bucket aqui!
+    storageBucket: 'prevention-vuforia-api.firebasestorage.app' 
 });
 const bucket = admin.storage().bucket();
+const db = admin.firestore();
 
 const ACCESS_KEY = process.env.VUFORIA_SERVER_ACCESS_KEY;
 const SECRET_KEY = process.env.VUFORIA_SERVER_SECRET_KEY;
@@ -223,5 +221,49 @@ app.delete('/targets/:id/:name', async (req, res) => {
     } catch (error) {
         console.error(error.response?.data || error.message);
         res.status(500).json({ success: false, error: error.response?.data || error.message });
+    }
+});
+
+// --- LEADERBOARD ENDPOINTS ---
+
+// 1. Gravar nova pontuação
+app.post('/leaderboard', async (req, res) => {
+    try {
+        const { username, score } = req.body;
+        
+        if (!username || score === undefined) {
+            return res.status(400).json({ success: false, error: "Dados incompletos (username ou score)." });
+        }
+
+        const docRef = await db.collection('leaderboard').add({
+            username: username,
+            score: parseInt(score),
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        res.json({ success: true, id: docRef.id });
+    } catch (error) {
+        console.error("Erro ao gravar na leaderboard:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 2. Obter top 10
+app.get('/leaderboard', async (req, res) => {
+    try {
+        const snapshot = await db.collection('leaderboard')
+            .orderBy('score', 'desc')
+            .limit(10)
+            .get();
+
+        const leaderboard = [];
+        snapshot.forEach(doc => {
+            leaderboard.push({ id: doc.id, ...doc.data() });
+        });
+
+        res.json({ success: true, leaderboard });
+    } catch (error) {
+        console.error("Erro ao obter leaderboard:", error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
