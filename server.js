@@ -269,3 +269,35 @@ app.get('/leaderboard', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+// --- METRICAS ENDPOINTS ---
+
+// POST /metricas - Save session metrics to Firestore
+app.post('/metricas', async (req, res) => {
+    try {
+        const body = req.body;
+
+        // Validate required fields
+        if (!body.sessao_id || !body.username) {
+            return res.status(400).json({
+                success: false,
+                error: 'Os campos "sessao_id" e "username" são obrigatórios.'
+            });
+        }
+
+        const { sessao_id, ...rest } = body;
+
+        const docData = {
+            ...rest,
+            sessao_id,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await db.collection('metricas').doc(sessao_id).set(docData, { merge: true });
+
+        return res.status(200).json({ success: true, id: sessao_id });
+    } catch (error) {
+        console.error('Erro ao guardar métricas:', error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
