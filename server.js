@@ -37,7 +37,7 @@ try {
 
 const firebaseApp = admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: 'prevention-vuforia-api.firebasestorage.app'
+    storageBucket: 'prevention-vuforia-api'
 });
 const bucket = admin.storage().bucket();
 // Explicitly define the database ID created by the user
