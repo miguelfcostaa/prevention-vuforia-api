@@ -2,9 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const axios = require('axios');
-const admin = require('firebase-admin'); 
+const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
-const fs = require('fs'); 
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -37,7 +37,7 @@ try {
 
 const firebaseApp = admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: 'prevention-vuforia-api.firebasestorage.app' 
+    storageBucket: 'prevention-vuforia-api.firebasestorage.app'
 });
 const bucket = admin.storage().bucket();
 // Explicitly define the database ID created by the user
@@ -71,7 +71,7 @@ app.get('/gallery', async (req, res) => {
             if (parts.length === 2) {
                 idReal = parts[0];
                 nomeReal = parts[1].replace('.png', '').replace('.jpg', '');
-                
+
                 // Link direto do Firebase para o Unity conseguir ler a imagem na UI
                 const urlImagem = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.name)}?alt=media`;
 
@@ -173,12 +173,12 @@ app.post('/targets', async (req, res) => {
             const targetId = response.data.target_id;
             const imageBuffer = Buffer.from(imageBase64, 'base64');
             const fileName = `${targetId}---${name}.png`;
-            
+
             const file = bucket.file(fileName);
             await file.save(imageBuffer, {
                 metadata: { contentType: 'image/png' }
             });
-            
+
             console.log(`Cópia guardada no Firebase: ${fileName}`);
         }
 
@@ -193,7 +193,7 @@ app.post('/targets', async (req, res) => {
 app.delete('/targets/:id/:name', async (req, res) => {
     try {
         const targetId = req.params.id;
-        const targetName = req.params.name; 
+        const targetName = req.params.name;
 
         const method = 'DELETE';
         const contentType = '';
@@ -210,7 +210,7 @@ app.delete('/targets/:id/:name', async (req, res) => {
         if (response.status === 200 || response.status === 201) {
             const fileName = `${targetId}---${targetName}.png`;
             const file = bucket.file(fileName);
-            
+
             try {
                 await file.delete();
                 console.log(`Imagem apagada do Firebase: ${fileName}`);
@@ -232,7 +232,7 @@ app.delete('/targets/:id/:name', async (req, res) => {
 app.post('/leaderboard', async (req, res) => {
     try {
         const { username, score } = req.body;
-        
+
         if (!username || score === undefined) {
             return res.status(400).json({ success: false, error: "Dados incompletos (username ou score)." });
         }
@@ -250,12 +250,11 @@ app.post('/leaderboard', async (req, res) => {
     }
 });
 
-// 2. Obter top 10
+// 2. Obter leaderboard
 app.get('/leaderboard', async (req, res) => {
     try {
         const snapshot = await db.collection('leaderboard')
             .orderBy('score', 'desc')
-            .limit(10)
             .get();
 
         const leaderboard = [];
